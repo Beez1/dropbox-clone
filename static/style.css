@@ -40,7 +40,8 @@
   
   input[type="email"],
   input[type="password"],
-  input[type="text"] {
+  input[type="text"],
+  input[type="file"] {
     padding: 0.6rem;
     font-size: 1rem;
     border: 1px solid #ccc;
@@ -50,7 +51,8 @@
   
   input[type="email"]:focus,
   input[type="password"]:focus,
-  input[type="text"]:focus {
+  input[type="text"]:focus,
+  input[type="file"]:focus {
     border-color: #007bff;
     outline: none;
   }
@@ -70,12 +72,18 @@
     background-color: #0056b3;
   }
   
+  button:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+  }
+  
   #auth-section {
     max-width: 500px;
     margin: auto;
   }
   
-  #directory-message {
+  #directory-message,
+  #upload-status {
     margin-top: 1rem;
     font-weight: bold;
     color: green;
@@ -87,4 +95,37 @@
     height: 1px;
     background: #ccc;
   }
-  
+
+  #directory-list,
+  #file-list {
+    list-style: none;
+    margin: 1rem 0;
+  }
+
+  #directory-list li,
+  #file-list li {
+    padding: 0.5rem;
+    border-bottom: 1px solid #eee;
+  }
+
+  #directory-list li:hover,
+  #file-list li:hover {
+    background-color: #f0f0f0;
+  }
+
+  #current-path {
+    font-family: monospace;
+    color: #666;
+  }
+
+  #create-dir-form {
+    margin-top: 1rem;
+  }
+
+  #create-dir-btn {
+    margin-top: 1rem;
+  }
+
+  #new-dir-name {
+    margin-right: 0.5rem;
+  }

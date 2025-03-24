@@ -1,10 +1,12 @@
 import os
 import requests
+import hashlib
 from flask import Flask, render_template, request, jsonify
 from dotenv import load_dotenv
 import firebase_admin
 from firebase_admin import credentials, firestore, storage, auth
 from services.auth_service import create_user_if_not_exists  
+from werkzeug.utils import secure_filename
 
 # Load environment variables
 load_dotenv()
@@ -83,6 +85,27 @@ def login():
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 401
+    
+@app.route("/list-files")
+def list_files():
+    uid = request.args.get("uid")
+    path = request.args.get("path")
+
+    files = db.collection("Files") \
+              .where("user_id", "==", uid) \
+              .where("path", "==", path) \
+              .stream()
+
+    result = []
+    for file in files:
+        data = file.to_dict()
+        result.append({
+            "name": data["name"],
+            "download_url": data["download_url"]
+        })
+
+    return jsonify(result)
+
 
 def create_directory(uid, name, parent_path="/"):
     db = firestore.client()
@@ -141,6 +164,42 @@ def list_directories():
     
     directories = [doc.to_dict() for doc in query.stream()]
     return jsonify(directories)
+
+@app.route("/upload", methods=["POST"])
+def upload_file():
+    file = request.files.get("file")
+    uid = request.form.get("uid")
+    path = request.form.get("path", "/")
+    
+    if not file:
+        return jsonify({"message": "No file uploaded."}), 400
+    
+    filename = secure_filename(file.filename)
+    blob_path = f"{uid}{path}{filename}"  # e.g. uid/images/user/file.pdf
+    
+    blob = bucket.blob(blob_path)
+    
+    if blob.exists():
+        return jsonify({"message": "File already exists. Overwrite not implemented yet."}), 409
+    
+    # Upload file
+    blob.upload_from_file(file)
+    
+    # Rewind and hash for duplicate detection later
+    file.seek(0)
+    file_bytes = file.read()
+    hash_val = hashlib.md5(file_bytes).hexdigest()
+    
+    # Save file metadata in Firestore
+    db.collection("Files").add({
+        "name": filename,
+        "path": path,
+        "user_id": uid,
+        "download_url": blob.public_url,
+        "hash_value": hash_val
+    })
+    
+    return jsonify({"message": f"✅ File '{filename}' uploaded to {path}."})
 
 @app.route("/firebase-config")
 def firebase_config():

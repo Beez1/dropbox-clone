@@ -47,8 +47,18 @@
       <div id="directory-message"></div>
 
       <hr>
+      <h2>Upload File</h2>
+      <form id="upload-form" enctype="multipart/form-data">
+        <input type="file" id="file-input" name="file" required />
+        <button type="submit">Upload</button>
+      </form>
+      <div id="upload-status"></div>
+
+      <hr>
       <h2>Current Directory: <span id="current-path">/</span></h2>
       <ul id="directory-list"></ul>
+      <h2>Files in Current Directory</h2>
+      <ul id="file-list"></ul>
       <button id="create-dir-btn">+ Create Folder</button>
       <div id="create-dir-form" style="display:none; margin-top:10px;">
         <input type="text" id="new-dir-name" placeholder="Folder name" required />
@@ -145,7 +155,42 @@
           document.getElementById("directory-message").textContent = result.message;
         });
 
+        document.getElementById("upload-form").addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const uid = document.getElementById("user-id").value;
+          const file = document.getElementById("file-input").files[0];
+          if (!file) return alert("Please select a file.");
+
+          const formData = new FormData();
+          formData.append("file", file);
+          formData.append("uid", uid);
+          formData.append("path", currentPath); // <-- Upload to current folder
+
+          const response = await fetch("/upload", {
+            method: "POST",
+            body: formData
+          });
+
+          const result = await response.json();
+          document.getElementById("upload-status").textContent = result.message;
+        });
+
         let currentPath = "/";
+
+        async function loadFiles() {
+          const uid = document.getElementById("user-id").value;
+          const response = await fetch(`/list-files?uid=${uid}&path=${encodeURIComponent(currentPath)}`);
+          const files = await response.json();
+
+          const fileList = document.getElementById("file-list");
+          fileList.innerHTML = "";
+
+          files.forEach(file => {
+            const li = document.createElement("li");
+            li.innerHTML = `<a href="${file.download_url}" target="_blank">${file.name}</a>`;
+            fileList.appendChild(li);
+          });
+        }
 
         // Load subdirectories
         async function loadDirectories() {
@@ -185,6 +230,7 @@
             };
             list.appendChild(li);
           });
+          loadFiles();
         }
 
         // Show input form on button click
