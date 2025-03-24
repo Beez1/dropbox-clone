@@ -3,11 +3,12 @@ import firebase_admin
 
 db = firestore.client()
 
-def create_directory(user_id, name, parent_path):
-    full_path = parent_path.rstrip('/') + '/' + name
-    db.collection('Directories').add({
-        'name': name,
-        'path': full_path,
-        'user_id': user_id
+def create_directory(uid, name, parent_path="/"):
+    db = firestore.client()
+    path = parent_path.rstrip("/") + "/" + name
+    db.collection("Directories").add({
+        "name": name,
+        "path": path,
+        "parent_path": parent_path,
+        "user_id": uid
     })
-

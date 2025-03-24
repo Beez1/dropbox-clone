@@ -84,17 +84,38 @@ def login():
     except Exception as e:
         return jsonify({"error": str(e)}), 401
 
+def create_directory(uid, name, parent_path="/"):
+    db = firestore.client()
+    name = name.strip()
+    if not name:
+        raise ValueError("Directory name cannot be empty")
+    
+    if not parent_path.endswith("/"):
+        parent_path += "/"
+    
+    path = parent_path.rstrip("/") + "/" + name
+    
+    db.collection("Directories").add({
+        "name": name,
+        "path": path,
+        "parent_path": parent_path,
+        "user_id": uid
+    })
+
 @app.route("/directory", methods=["POST"])
-def create_directory():
-    data = request.get_json()
-    uid = data.get("uid")
-    name = data.get("name")
-    parent_path = data.get("parent_path", "/")
-
-    from services.directory_service import create_directory
-    create_directory(uid, name, parent_path)
-
-    return jsonify({"message": "Directory created."})
+def create_directory_route():
+    try:
+        data = request.get_json()
+        uid = data.get("uid")
+        name = data.get("name")
+        parent_path = data.get("parent_path", "/")
+        
+        from services.directory_service import create_directory
+        create_directory(uid, name, parent_path)
+        
+        return jsonify({"message": f"Directory '{name}' created in '{parent_path}'"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
 
 @app.route("/directory", methods=["DELETE"])
 def delete_directory():
@@ -108,6 +129,18 @@ def delete_directory():
       .get()[0].reference.delete()
 
     return jsonify({"message": "Directory deleted."})
+
+@app.route("/list-directories")
+def list_directories():
+    uid = request.args.get("uid")
+    path = request.args.get("path", "/")
+    
+    query = db.collection("Directories") \
+        .where("user_id", "==", uid) \
+        .where("parent_path", "==", path)
+    
+    directories = [doc.to_dict() for doc in query.stream()]
+    return jsonify(directories)
 
 @app.route("/firebase-config")
 def firebase_config():

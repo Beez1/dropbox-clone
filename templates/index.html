@@ -34,7 +34,7 @@
       <hr>
       <h2>Manage Directories</h2>
       <form id="create-directory-form">
-        <input type="text" id="dir-name" placeholder="Directory name" required />
+        <input type="text" id="create-dir-name" placeholder="Directory name" required />
         <input type="hidden" id="user-id" value="" />
         <button type="submit">Create Directory</button>
       </form>
@@ -45,6 +45,16 @@
       </form>
 
       <div id="directory-message"></div>
+
+      <hr>
+      <h2>Current Directory: <span id="current-path">/</span></h2>
+      <ul id="directory-list"></ul>
+      <button id="create-dir-btn">+ Create Folder</button>
+      <div id="create-dir-form" style="display:none; margin-top:10px;">
+        <input type="text" id="new-dir-name" placeholder="Folder name" required />
+        <button id="confirm-create-dir" type="button">Create</button>
+      </div>
+      <div id="directory-message" style="margin-top:10px;"></div>
 
       <script>
         const logoutBtn = document.getElementById("logout-btn");
@@ -85,17 +95,16 @@
           const result = await response.json();
 
           if (result.uid) {
-
-            document.getElementById("user-status").textContent = `Logged in as ${email}`;
             document.getElementById("user-id").value = result.uid;
+            document.getElementById("user-status").textContent = `Logged in as ${email}`;
+            currentPath = "/";
+            document.getElementById("current-path").textContent = "/";
+            loadDirectories(); // ✅ Load directories here
             logoutBtn.style.display = "inline-block"; // ✅ Show logout
 
             // ✅ Clear fields
             document.getElementById("login-email").value = "";
             document.getElementById("login-password").value = "";
-
-
-
 
             // ✅ Disable login form after success
             document.getElementById("login-email").disabled = true;
@@ -108,7 +117,7 @@
 
         document.getElementById("create-directory-form").addEventListener("submit", async (e) => {
           e.preventDefault();
-          const name = document.getElementById("dir-name").value;
+          const name = document.getElementById("create-dir-name").value;
           const uid = document.getElementById("user-id").value;
 
           const response = await fetch("/directory", {
@@ -135,6 +144,89 @@
           const result = await response.json();
           document.getElementById("directory-message").textContent = result.message;
         });
+
+        let currentPath = "/";
+
+        // Load subdirectories
+        async function loadDirectories() {
+          const uid = document.getElementById("user-id").value;
+          if (!uid) return;
+
+          const response = await fetch(`/list-directories?uid=${uid}&path=${encodeURIComponent(currentPath)}`);
+          const dirs = await response.json();
+
+          const list = document.getElementById("directory-list");
+          list.innerHTML = "";
+
+          // Show "go up" if not in root
+          if (currentPath !== "/") {
+            const up = document.createElement("li");
+            up.textContent = "../";
+            up.style.cursor = "pointer";
+            up.onclick = () => {
+              const split = currentPath.split("/").filter(Boolean);
+              split.pop();
+              currentPath = "/" + split.join("/") + "/";
+              if (currentPath === "//" || currentPath === "") currentPath = "/";
+              document.getElementById("current-path").textContent = currentPath;
+              loadDirectories();
+            };
+            list.appendChild(up);
+          }
+
+          dirs.forEach(dir => {
+            const li = document.createElement("li");
+            li.textContent = dir.name + "/";
+            li.style.cursor = "pointer";
+            li.onclick = () => {
+              currentPath += dir.name + "/";
+              document.getElementById("current-path").textContent = currentPath;
+              loadDirectories();
+            };
+            list.appendChild(li);
+          });
+        }
+
+        // Show input form on button click
+        document.getElementById("create-dir-btn").onclick = () => {
+          document.getElementById("create-dir-form").style.display = "block";
+        };
+
+        document.getElementById("confirm-create-dir").onclick = async () => {
+          const uid = document.getElementById("user-id").value;
+          const nameInput = document.getElementById("dir-name");
+
+          if (!nameInput) {
+            alert("Input field not found");
+            return;
+          }
+
+          const name = nameInput.value.trim(); // trims whitespace
+          console.log("Folder name input value:", `"${name}"`);
+
+          if (!name) {
+            alert("Folder name cannot be empty.");
+            return;
+          }
+
+          const response = await fetch("/directory", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              uid,
+              name,
+              parent_path: currentPath
+            })
+          });
+
+          const result = await response.json();
+
+          document.getElementById("directory-message").textContent = result.message;
+
+          nameInput.value = "";
+          document.getElementById("create-dir-form").style.display = "none";
+          loadDirectories();
+        };
       </script>
     </div>
   </main>
