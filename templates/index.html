@@ -61,6 +61,11 @@
       <button onclick="showGlobalDuplicates()">Find Global Duplicates</button>
       <ul id="global-duplicates"></ul>
       <ul id="file-list"></ul>
+      <!-- Folder creation section -->
+      <div id="create-folder-section">
+        <input type="text" id="new-folder-name" placeholder="Folder name" />
+        <button onclick="createFolder()">Create Folder</button>
+      </div>
       <button id="create-dir-btn">+ Create Folder</button>
       <div id="create-dir-form" style="display:none; margin-top:10px;">
         <input type="text" id="new-dir-name" placeholder="Folder name" required />
@@ -71,6 +76,37 @@
       <div id="overwrite-modal" class="modal hidden">   <div class="modal-content">     <p id="overwrite-text">File already exists. Overwrite?</p>     <div class="modal-actions">       <button id="overwrite-confirm">Yes, Overwrite</button>       <button id="overwrite-cancel">Cancel</button>     </div>   </div> </div>
 
       <script>
+        let currentPath = "/";
+
+        async function createFolder() {
+          const folderNameInput = document.getElementById("new-folder-name");
+          if (!folderNameInput) {
+            alert("❌ Folder name input field not found.");
+            return;
+          }
+
+          const name = folderNameInput.value.trim();
+          if (!name) {
+            alert("❌ Folder name cannot be empty.");
+            return;
+          }
+
+          const uid = document.getElementById("user-id").value;
+          const parent_path = currentPath;
+
+          const res = await fetch("/directory", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ uid, name, parent_path })
+          });
+
+          const data = await res.json();
+          document.getElementById("upload-status").textContent = data.message;
+
+          folderNameInput.value = ""; // clear input
+          loadDirectories(); // refresh folder list
+        }
+
         const logoutBtn = document.getElementById("logout-btn");
         logoutBtn.addEventListener("click", () => {
           // ✅ Reset status
@@ -206,8 +242,6 @@
           document.getElementById("upload-status").textContent = result.message;
           loadFiles(); // Refresh file list
         }
-
-        let currentPath = "/";
 
         async function loadFiles() {
           const uid = document.getElementById("user-id").value;
@@ -382,4 +416,3 @@
     </div>
   </main>
 </body>
-</html>
