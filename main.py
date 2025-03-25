@@ -86,25 +86,84 @@ def login():
     except Exception as e:
         return jsonify({"error": str(e)}), 401
     
+@app.route("/delete-file", methods=["POST"])
+def delete_file():
+    data = request.get_json()
+    uid = data.get("uid")
+    path = data.get("path")
+    name = data.get("name")
+
+    # Delete file from storage
+    blob_path = f"{uid}{path}{name}"
+    blob = bucket.blob(blob_path)
+    if blob.exists():
+        blob.delete()
+
+    # Delete file metadata from Firestore
+    files = db.collection("Files") \
+              .where("user_id", "==", uid) \
+              .where("path", "==", path) \
+              .where("name", "==", name) \
+              .stream()
+
+    for f in files:
+        f.reference.delete()
+
+    return jsonify({"message": f"🗑️ File '{name}' deleted."})
+
+    
 @app.route("/list-files")
 def list_files():
     uid = request.args.get("uid")
     path = request.args.get("path")
 
+    # Fetch all files in this directory
     files = db.collection("Files") \
               .where("user_id", "==", uid) \
               .where("path", "==", path) \
               .stream()
 
-    result = []
-    for file in files:
-        data = file.to_dict()
-        result.append({
-            "name": data["name"],
-            "download_url": data["download_url"]
-        })
+    files_list = []
+    hash_count = {}
 
-    return jsonify(result)
+    # First pass: build hash counts
+    for f in files:
+        data = f.to_dict()
+        hash_val = data.get("hash_value")
+        hash_count[hash_val] = hash_count.get(hash_val, 0) + 1
+        files_list.append(data)
+
+    # Second pass: mark duplicates
+    for f in files_list:
+        f["is_duplicate"] = hash_count.get(f["hash_value"], 0) > 1
+
+    return jsonify(files_list)
+
+@app.route("/duplicate-files-global")
+def duplicate_files_global():
+    uid = request.args.get("uid")
+    
+    files = db.collection("Files") \
+              .where("user_id", "==", uid) \
+              .stream()
+    
+    hash_map = {}
+    for f in files:
+        data = f.to_dict()
+        h = data.get("hash_value")
+        if h:
+            if h not in hash_map:
+                hash_map[h] = []
+            hash_map[h].append({
+                "name": data["name"],
+                "path": data["path"],
+                "download_url": data["download_url"]
+            })
+    
+    # Keep only duplicates
+    duplicates = {h: v for h, v in hash_map.items() if len(v) > 1}
+    
+    return jsonify(duplicates)
 
 
 def create_directory(uid, name, parent_path="/"):
@@ -124,6 +183,23 @@ def create_directory(uid, name, parent_path="/"):
         "parent_path": parent_path,
         "user_id": uid
     })
+
+@app.route("/check-file")
+def check_file():
+    uid = request.args.get("uid")
+    path = request.args.get("path")
+    name = request.args.get("name")
+
+    files = db.collection("Files") \
+        .where("user_id", "==", uid) \
+        .where("path", "==", path) \
+        .where("name", "==", name) \
+        .stream()
+
+    exists = any(True for _ in files)
+
+    return jsonify({"exists": exists})
+
 
 @app.route("/directory", methods=["POST"])
 def create_directory_route():
@@ -146,12 +222,34 @@ def delete_directory():
     uid = data.get("uid")
     path = data.get("path")
 
-    db.collection("Directories") \
-      .where("user_id", "==", uid) \
-      .where("path", "==", path) \
-      .get()[0].reference.delete()
+    # Check for subdirectories
+    subdirs = db.collection("Directories") \
+        .where("user_id", "==", uid) \
+        .where("path", ">=", path + "/") \
+        .where("path", "<", path + "0") \
+        .limit(1) \
+        .stream()
 
-    return jsonify({"message": "Directory deleted."})
+    if any(subdirs):
+        return jsonify({"message": "❌ Directory contains subdirectories."}), 400
+
+    # Check for files
+    files = db.collection("Files") \
+        .where("user_id", "==", uid) \
+        .where("path", "==", path) \
+        .limit(1) \
+        .stream()
+
+    if any(files):
+        return jsonify({"message": "❌ Directory contains files."}), 400
+
+    # Delete the directory
+    db.collection("Directories") \
+       .where("user_id", "==", uid) \
+       .where("path", "==", path) \
+       .get()[0].reference.delete()
+
+    return jsonify({"message": "✅ Directory deleted."})
 
 @app.route("/list-directories")
 def list_directories():
@@ -175,22 +273,35 @@ def upload_file():
         return jsonify({"message": "No file uploaded."}), 400
     
     filename = secure_filename(file.filename)
-    blob_path = f"{uid}{path}{filename}"  # e.g. uid/images/user/file.pdf
+    blob_path = f"{uid}{path}{filename}"
     
+    # 🔍 Delete existing Firestore metadata if exists
+    existing = db.collection("Files") \
+        .where("user_id", "==", uid) \
+        .where("path", "==", path) \
+        .where("name", "==", filename) \
+        .stream()
+    
+    for f in existing:
+        f.reference.delete()
+    
+    # 🔥 Delete old file in Firebase Storage (optional safety)
+    old_blob = bucket.blob(blob_path)
+    if old_blob.exists():
+        old_blob.delete()
+    
+    # 🆕 Upload file
     blob = bucket.blob(blob_path)
-    
-    if blob.exists():
-        return jsonify({"message": "File already exists. Overwrite not implemented yet."}), 409
-    
-    # Upload file
     blob.upload_from_file(file)
+    # ✅ Make file public
+    blob.make_public()
     
-    # Rewind and hash for duplicate detection later
+    # 🧠 Hash file for duplication tracking
     file.seek(0)
     file_bytes = file.read()
     hash_val = hashlib.md5(file_bytes).hexdigest()
     
-    # Save file metadata in Firestore
+    # 🔐 Store metadata
     db.collection("Files").add({
         "name": filename,
         "path": path,

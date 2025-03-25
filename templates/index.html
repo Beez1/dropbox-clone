@@ -58,6 +58,8 @@
       <h2>Current Directory: <span id="current-path">/</span></h2>
       <ul id="directory-list"></ul>
       <h2>Files in Current Directory</h2>
+      <button onclick="showGlobalDuplicates()">Find Global Duplicates</button>
+      <ul id="global-duplicates"></ul>
       <ul id="file-list"></ul>
       <button id="create-dir-btn">+ Create Folder</button>
       <div id="create-dir-form" style="display:none; margin-top:10px;">
@@ -65,6 +67,8 @@
         <button id="confirm-create-dir" type="button">Create</button>
       </div>
       <div id="directory-message" style="margin-top:10px;"></div>
+
+      <div id="overwrite-modal" class="modal hidden">   <div class="modal-content">     <p id="overwrite-text">File already exists. Overwrite?</p>     <div class="modal-actions">       <button id="overwrite-confirm">Yes, Overwrite</button>       <button id="overwrite-cancel">Cancel</button>     </div>   </div> </div>
 
       <script>
         const logoutBtn = document.getElementById("logout-btn");
@@ -145,14 +149,14 @@
           const uid = document.getElementById("user-id").value;
           const path = document.getElementById("delete-path").value;
 
-          const response = await fetch("/directory", {
+          const res = await fetch("/directory", {
             method: "DELETE",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ uid, path })
+            body: JSON.stringify({ uid: userId, path: pathToDelete })
           });
 
-          const result = await response.json();
-          document.getElementById("directory-message").textContent = result.message;
+          const result = await res.json();
+          document.getElementById("upload-status").textContent = result.message;
         });
 
         document.getElementById("upload-form").addEventListener("submit", async (e) => {
@@ -160,20 +164,48 @@
           const uid = document.getElementById("user-id").value;
           const file = document.getElementById("file-input").files[0];
           if (!file) return alert("Please select a file.");
+          const path = currentPath;
 
+          const checkRes = await fetch(`/check-file?uid=${uid}&path=${encodeURIComponent(path)}&name=${encodeURIComponent(file.name)}`);
+          const checkData = await checkRes.json();
+
+          if (checkData.exists) {
+            showOverwriteModal(file, uid, path);
+          } else {
+            uploadNow(file, uid, path);
+          }
+        });
+
+        function showOverwriteModal(file, uid, path) {
+          const modal = document.getElementById("overwrite-modal");
+          modal.classList.remove("hidden");
+
+          document.getElementById("overwrite-confirm").onclick = () => {
+            modal.classList.add("hidden");
+            uploadNow(file, uid, path);
+          };
+
+          document.getElementById("overwrite-cancel").onclick = () => {
+            modal.classList.add("hidden");
+            document.getElementById("upload-status").textContent = "Upload canceled.";
+          };
+        }
+
+        async function uploadNow(file, uid, path) {
           const formData = new FormData();
           formData.append("file", file);
           formData.append("uid", uid);
-          formData.append("path", currentPath); // <-- Upload to current folder
+          formData.append("path", path);
 
-          const response = await fetch("/upload", {
+          const uploadRes = await fetch("/upload", {
             method: "POST",
             body: formData
           });
 
-          const result = await response.json();
+          const result = await uploadRes.json();
           document.getElementById("upload-status").textContent = result.message;
-        });
+          loadFiles(); // Refresh file list
+        }
 
         let currentPath = "/";
 
@@ -187,9 +219,82 @@
 
           files.forEach(file => {
             const li = document.createElement("li");
-            li.innerHTML = `<a href="${file.download_url}" target="_blank">${file.name}</a>`;
+            const nameSpan = document.createElement("span");
+            nameSpan.textContent = file.name;
+
+            if (file.is_duplicate) {
+              nameSpan.style.color = "red";
+              nameSpan.title = "Duplicate file";
+            }
+
+            const downloadBtn = document.createElement("a");
+            downloadBtn.href = file.download_url;
+            downloadBtn.textContent = "⬇️";
+            downloadBtn.target = "_blank";
+            downloadBtn.style.marginLeft = "10px";
+
+            const deleteBtn = document.createElement("button");
+            deleteBtn.textContent = "🗑️";
+            deleteBtn.style.marginLeft = "10px";
+            deleteBtn.onclick = () => {
+              if (confirm(`Delete "${file.name}"?`)) {
+                deleteFile(file.name);
+              }
+            };
+
+            li.appendChild(nameSpan);
+            li.appendChild(downloadBtn);
+            li.appendChild(deleteBtn);
             fileList.appendChild(li);
           });
+        }
+
+        async function deleteFile(fileName) {
+          const uid = document.getElementById("user-id").value;
+
+          const res = await fetch("/delete-file", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              uid: uid,
+              path: currentPath,
+              name: fileName
+            })
+          });
+
+          const result = await res.json();
+          document.getElementById("upload-status").textContent = result.message;
+          loadFiles(); // Refresh file list
+        }
+
+        async function showGlobalDuplicates() {
+          const uid = document.getElementById("user-id").value;
+          const res = await fetch(`/duplicate-files-global?uid=${uid}`);
+          const data = await res.json();
+
+          const dupList = document.getElementById("global-duplicates");
+          dupList.innerHTML = "";
+
+          for (const [hash, files] of Object.entries(data)) {
+            const group = document.createElement("li");
+            group.innerHTML = `<strong>Duplicate Hash:</strong> ${hash}`;
+
+            const subList = document.createElement("ul");
+            files.forEach(file => {
+              const item = document.createElement("li");
+              item.innerHTML = `<a href="${file.download_url}" target="_blank">${file.name}</a> — <code>${file.path}</code>`;
+              subList.appendChild(item);
+            });
+
+            group.appendChild(subList);
+            dupList.appendChild(group);
+          }
+
+          if (Object.keys(data).length === 0) {
+            dupList.innerHTML = "<li>✅ No duplicates found in your Dropbox.</li>";
+          }
         }
 
         // Load subdirectories

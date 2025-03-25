@@ -1,131 +1,196 @@
+/* Dropbox Theme Colors */
+:root {
+  --primary: #0061FF;
+  --primary-hover: #0052D9;
+  --background: #FFFFFF;
+  --text: #1E1919;
+  --border: #E6E8EB;
+  --success: #007C3B;
+}
+
 /* Reset & Base */
 * {
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
-  }
-  
-  body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background-color: #f4f6f8;
-    color: #333;
-    padding: 2rem;
-    line-height: 1.6;
-  }
-  
-  header {
-    text-align: center;
-    margin-bottom: 2rem;
-  }
-  
-  h1 {
-    font-size: 2.5rem;
-    color: #222;
-  }
-  
-  h2 {
-    margin-top: 1.5rem;
-    font-size: 1.4rem;
-    color: #444;
-  }
-  
-  /* Forms */
-  form {
-    margin-top: 1rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    max-width: 400px;
-  }
-  
-  input[type="email"],
-  input[type="password"],
-  input[type="text"],
-  input[type="file"] {
-    padding: 0.6rem;
-    font-size: 1rem;
-    border: 1px solid #ccc;
-    border-radius: 6px;
-    transition: border 0.3s;
-  }
-  
-  input[type="email"]:focus,
-  input[type="password"]:focus,
-  input[type="text"]:focus,
-  input[type="file"]:focus {
-    border-color: #007bff;
-    outline: none;
-  }
-  
-  button {
-    padding: 0.6rem;
-    font-size: 1rem;
-    background-color: #007bff;
-    color: white;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: background 0.3s;
-  }
-  
-  button:hover {
-    background-color: #0056b3;
-  }
-  
-  button:disabled {
-    background-color: #ccc;
-    cursor: not-allowed;
-  }
-  
-  #auth-section {
-    max-width: 500px;
-    margin: auto;
-  }
-  
-  #directory-message,
-  #upload-status {
-    margin-top: 1rem;
-    font-weight: bold;
-    color: green;
-  }
-  
-  hr {
-    margin: 2rem 0;
-    border: 0;
-    height: 1px;
-    background: #ccc;
-  }
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
 
-  #directory-list,
-  #file-list {
-    list-style: none;
-    margin: 1rem 0;
-  }
+body {
+  font-family: 'Atlas Grotesk Web', -apple-system, BlinkMacSystemFont, sans-serif;
+  background-color: var(--background);
+  color: var(--text);
+  line-height: 1.5;
+}
 
-  #directory-list li,
-  #file-list li {
-    padding: 0.5rem;
-    border-bottom: 1px solid #eee;
-  }
+header {
+  padding: 1.5rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--background);
+}
 
-  #directory-list li:hover,
-  #file-list li:hover {
-    background-color: #f0f0f0;
-  }
+h1 {
+  font-size: 1.75rem;
+  font-weight: 500;
+  color: var(--text);
+}
 
-  #current-path {
-    font-family: monospace;
-    color: #666;
-  }
+h2 {
+  font-size: 1.25rem;
+  font-weight: 500;
+  margin: 1.5rem 0 1rem;
+}
 
-  #create-dir-form {
-    margin-top: 1rem;
-  }
+/* Container */
+#auth-section {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 2rem;
+}
 
-  #create-dir-btn {
-    margin-top: 1rem;
-  }
+/* Forms */
+form {
+  margin: 1rem 0;
+  max-width: 400px;
+}
 
-  #new-dir-name {
-    margin-right: 0.5rem;
+input {
+  width: 100%;
+  padding: 0.75rem;
+  margin-bottom: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+}
+
+input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(0,97,255,0.2);
+  outline: none;
+}
+
+button {
+  width: 100%;
+  padding: 0.75rem;
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+button:hover {
+  background: var(--primary-hover);
+  transform: translateY(-1px);
+}
+
+button:active {
+  transform: translateY(0);
+}
+
+/* Lists */
+#directory-list,
+#file-list {
+  list-style: none;
+  margin: 1rem 0;
+}
+
+#directory-list li,
+#file-list li {
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  animation: fadeIn 0.3s ease;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
   }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Modal */
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s ease;
+}
+
+.modal.active {
+  opacity: 1;
+  visibility: visible;
+}
+
+.modal-content {
+  background: var(--background);
+  padding: 2rem;
+  border-radius: 8px;
+  max-width: 400px;
+  width: 90%;
+  transform: scale(0.9);
+  transition: transform 0.3s ease;
+}
+
+.modal.active .modal-content {
+  transform: scale(1);
+}
+
+/* Status Messages */
+#directory-message,
+#upload-status {
+  padding: 0.75rem;
+  margin: 1rem 0;
+  border-radius: 4px;
+  background: #E3F2FD;
+  color: var(--primary);
+  animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* File Actions */
+#file-list button,
+#file-list a {
+  padding: 0.5rem;
+  margin-left: 0.5rem;
+  border-radius: 4px;
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+}
+
+#file-list a {
+  background: var(--success);
+  color: white;
+  text-decoration: none;
+}
+
+.hidden {
+  display: none !important;
+}
