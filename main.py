@@ -12,18 +12,30 @@ from werkzeug.utils import secure_filename
 load_dotenv()
 
 # Initialize Firebase Admin
-cred = credentials.Certificate({
-    "type": os.getenv("FIREBASE_TYPE"),
-    "project_id": os.getenv("FIREBASE_PROJECT_ID"),
-    "private_key": os.getenv("FIREBASE_PRIVATE_KEY").replace("\\n", "\n"),
-    "client_email": os.getenv("FIREBASE_CLIENT_EMAIL"),
-    "client_id": os.getenv("FIREBASE_CLIENT_ID"),
-    "auth_uri": os.getenv("FIREBASE_AUTH_URI"),
-    "token_uri": os.getenv("FIREBASE_TOKEN_URI"),
-    "auth_provider_x509_cert_url": os.getenv("FIREBASE_AUTH_PROVIDER_CERT_URL"),
-    "client_x509_cert_url": os.getenv("FIREBASE_CLIENT_CERT_URL"),
-})
+try:
+    # First try to use the .env variables with the Google_ prefix
+    cred = credentials.Certificate({
+        "type": "service_account",
+        "project_id": os.getenv("GOOGLE_PROJECT_ID"),
+        "private_key_id": os.getenv("GOOGLE_PRIVATE_KEY_ID"),
+        "private_key": os.getenv("GOOGLE_PRIVATE_KEY"),
+        "client_email": os.getenv("GOOGLE_CLIENT_EMAIL"),
+        "client_id": os.getenv("GOOGLE_CLIENT_ID"),
+        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+        "token_uri": "https://oauth2.googleapis.com/token",
+        "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+        "client_x509_cert_url": os.getenv("GOOGLE_CLIENT_X509_CERT_URL")
+    })
+except Exception as e:
+    print(f"Failed to initialize Firebase with first method: {e}")
+    # Fallback to JSON file if available
+    try:
+        cred = credentials.Certificate("Dropboxclone Firebase Admin SDK.json")
+    except Exception as e:
+        print(f"Failed to initialize Firebase with JSON file: {e}")
+        raise
 
+# Initialize Firebase app
 firebase_admin.initialize_app(cred, {
     'storageBucket': os.getenv("FIREBASE_STORAGE_BUCKET")
 })
@@ -40,6 +52,19 @@ FIREBASE_API_KEY = os.getenv("FIREBASE_API_KEY")
 def index():
     return render_template("index.html")
 
+@app.route("/firebase-config")
+def firebase_config():
+    """Return Firebase configuration to the client"""
+    return jsonify({
+        "apiKey": os.getenv("FIREBASE_API_KEY"),
+        "authDomain": os.getenv("FIREBASE_AUTH_DOMAIN"),
+        "projectId": os.getenv("FIREBASE_PROJECT_ID"),
+        "storageBucket": os.getenv("FIREBASE_STORAGE_BUCKET"),
+        "messagingSenderId": os.getenv("FIREBASE_MESSAGING_SENDER_ID"),
+        "appId": os.getenv("FIREBASE_APP_ID"),
+        "measurementId": os.getenv("FIREBASE_MEASUREMENT_ID")
+    })
+
 @app.route("/signup", methods=["POST"])
 def signup():
     email = request.form.get("email")
@@ -55,116 +80,109 @@ def signup():
 
 @app.route("/login", methods=["POST"])
 def login():
-    email = request.form.get("email")
-    password = request.form.get("password")
-    
-    payload = {
-        "email": email,
-        "password": password,
-        "returnSecureToken": True
-    }
-    
-    try:
-        res = requests.post(
-            f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={FIREBASE_API_KEY}",
-            json=payload
-        )
+    # Handle regular form submission
+    if request.content_type and "form" in request.content_type:
+        email = request.form.get("email")
+        password = request.form.get("password")
         
-        data = res.json()
-        if "error" in data:
-            raise Exception(data["error"]["message"])
+        payload = {
+            "email": email,
+            "password": password,
+            "returnSecureToken": True
+        }
         
-        id_token = data["idToken"]
-        decoded = auth.verify_id_token(id_token)
-        uid = decoded["uid"]
-        create_user_if_not_exists(uid, email)
-        
-        return jsonify({
-            "message": f"✅ Login successful for {email}",
-            "uid": uid
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 401
+        try:
+            res = requests.post(
+                f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={FIREBASE_API_KEY}",
+                json=payload
+            )
+            
+            data = res.json()
+            if "error" in data:
+                raise Exception(data["error"]["message"])
+            
+            id_token = data["idToken"]
+            decoded = auth.verify_id_token(id_token)
+            uid = decoded["uid"]
+            create_user_if_not_exists(uid, email)
+            
+            return jsonify({
+                "message": f"✅ Login successful for {email}",
+                "uid": uid
+            })
+        except Exception as e:
+            return jsonify({"error": str(e)}), 401
     
+    # Handle ID token from Firebase client SDK
+    data = request.get_json()
+    if data and "idToken" in data:
+        try:
+            id_token = data["idToken"]
+            decoded = auth.verify_id_token(id_token)
+            uid = decoded["uid"]
+            email = decoded.get("email", "")
+            create_user_if_not_exists(uid, email)
+            
+            return jsonify({
+                "message": f"✅ Login successful",
+                "uid": uid
+            })
+        except Exception as e:
+            return jsonify({"error": str(e)}), 401
+    
+    return jsonify({"error": "Invalid request format"}), 400
+
 @app.route("/delete-file", methods=["POST"])
 def delete_file():
     data = request.get_json()
     uid = data.get("uid")
     path = data.get("path")
     name = data.get("name")
-
-    # Delete file from storage
-    blob_path = f"{uid}{path}{name}"
-    blob = bucket.blob(blob_path)
-    if blob.exists():
-        blob.delete()
-
-    # Delete file metadata from Firestore
-    files = db.collection("Files") \
-              .where("user_id", "==", uid) \
-              .where("path", "==", path) \
-              .where("name", "==", name) \
-              .stream()
-
-    for f in files:
-        f.reference.delete()
-
-    return jsonify({"message": f"🗑️ File '{name}' deleted."})
-
     
+    from services.file_service import delete_file
+    success = delete_file(uid, path, name)
+    
+    if success:
+        return jsonify({"message": f"File '{name}' deleted successfully"})
+    else:
+        return jsonify({"error": "File not found"}), 404
+
 @app.route("/list-files")
 def list_files():
     uid = request.args.get("uid")
     path = request.args.get("path")
-
-    # Fetch all files in this directory
-    files = db.collection("Files") \
-              .where("user_id", "==", uid) \
-              .where("path", "==", path) \
-              .stream()
-
-    files_list = []
-    hash_count = {}
-
-    # First pass: build hash counts
-    for f in files:
-        data = f.to_dict()
-        hash_val = data.get("hash_value")
-        hash_count[hash_val] = hash_count.get(hash_val, 0) + 1
-        files_list.append(data)
-
-    # Second pass: mark duplicates
-    for f in files_list:
-        f["is_duplicate"] = hash_count.get(f["hash_value"], 0) > 1
-
+    
+    from services.file_service import get_files
+    files_list = get_files(uid, path)
+    
     return jsonify(files_list)
 
 @app.route("/duplicate-files-global")
 def duplicate_files_global():
     uid = request.args.get("uid")
     
-    files = db.collection("Files") \
-              .where("user_id", "==", uid) \
-              .stream()
-    
-    hash_map = {}
-    for f in files:
-        data = f.to_dict()
-        h = data.get("hash_value")
-        if h:
-            if h not in hash_map:
-                hash_map[h] = []
-            hash_map[h].append({
-                "name": data["name"],
-                "path": data["path"],
-                "download_url": data["download_url"]
-            })
-    
-    # Keep only duplicates
-    duplicates = {h: v for h, v in hash_map.items() if len(v) > 1}
+    from services.file_service import find_global_duplicates
+    duplicates = find_global_duplicates(uid)
     
     return jsonify(duplicates)
 
+@app.route("/check-file")
+def check_file():
+    uid = request.args.get("uid")
+    path = request.args.get("path")
+    name = request.args.get("name")
+    
+    # Check if file exists
+    files = db.collection("Files") \
+        .where("user_id", "==", uid) \
+        .where("path", "==", path) \
+        .where("name", "==", name) \
+        .limit(1) \
+        .get()
+    
+    exists = len(files) > 0
+    
+    return jsonify({"exists": exists})
 
 def create_directory(uid, name, parent_path="/"):
     db = firestore.client()
@@ -184,22 +202,15 @@ def create_directory(uid, name, parent_path="/"):
         "user_id": uid
     })
 
-@app.route("/check-file")
-def check_file():
+@app.route("/list-directories")
+def list_directories():
     uid = request.args.get("uid")
-    path = request.args.get("path")
-    name = request.args.get("name")
-
-    files = db.collection("Files") \
-        .where("user_id", "==", uid) \
-        .where("path", "==", path) \
-        .where("name", "==", name) \
-        .stream()
-
-    exists = any(True for _ in files)
-
-    return jsonify({"exists": exists})
-
+    parent_path = request.args.get("parent_path", "/")
+    
+    from services.directory_service import get_directories
+    directories = get_directories(uid, parent_path)
+    
+    return jsonify(directories)
 
 @app.route("/directory", methods=["POST"])
 def create_directory_route():
@@ -213,112 +224,51 @@ def create_directory_route():
         create_directory(uid, name, parent_path)
         
         return jsonify({"message": f"Directory '{name}' created in '{parent_path}'"})
-    except Exception as e:
+    except ValueError as e:
         return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": f"Failed to create directory: {str(e)}"}), 500
 
 @app.route("/directory", methods=["DELETE"])
 def delete_directory():
-    data = request.get_json()
-    uid = data.get("uid")
-    path = data.get("path")
-
-    # Check for subdirectories
-    subdirs = db.collection("Directories") \
-        .where("user_id", "==", uid) \
-        .where("path", ">=", path + "/") \
-        .where("path", "<", path + "0") \
-        .limit(1) \
-        .stream()
-
-    if any(subdirs):
-        return jsonify({"message": "❌ Directory contains subdirectories."}), 400
-
-    # Check for files
-    files = db.collection("Files") \
-        .where("user_id", "==", uid) \
-        .where("path", "==", path) \
-        .limit(1) \
-        .stream()
-
-    if any(files):
-        return jsonify({"message": "❌ Directory contains files."}), 400
-
-    # Delete the directory
-    db.collection("Directories") \
-       .where("user_id", "==", uid) \
-       .where("path", "==", path) \
-       .get()[0].reference.delete()
-
-    return jsonify({"message": "✅ Directory deleted."})
-
-@app.route("/list-directories")
-def list_directories():
-    uid = request.args.get("uid")
-    path = request.args.get("path", "/")
-    
-    query = db.collection("Directories") \
-        .where("user_id", "==", uid) \
-        .where("parent_path", "==", path)
-    
-    directories = [doc.to_dict() for doc in query.stream()]
-    return jsonify(directories)
+    try:
+        data = request.get_json()
+        uid = data.get("uid")
+        path = data.get("path")
+        
+        from services.directory_service import delete_directory
+        success = delete_directory(uid, path)
+        
+        if success:
+            return jsonify({"message": f"Directory '{path}' deleted successfully"})
+        else:
+            return jsonify({"error": "Directory not found"}), 404
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": f"Failed to delete directory: {str(e)}"}), 500
 
 @app.route("/upload", methods=["POST"])
 def upload_file():
-    file = request.files.get("file")
-    uid = request.form.get("uid")
-    path = request.form.get("path", "/")
-    
-    if not file:
-        return jsonify({"message": "No file uploaded."}), 400
-    
-    filename = secure_filename(file.filename)
-    blob_path = f"{uid}{path}{filename}"
-    
-    # 🔍 Delete existing Firestore metadata if exists
-    existing = db.collection("Files") \
-        .where("user_id", "==", uid) \
-        .where("path", "==", path) \
-        .where("name", "==", filename) \
-        .stream()
-    
-    for f in existing:
-        f.reference.delete()
-    
-    # 🔥 Delete old file in Firebase Storage (optional safety)
-    old_blob = bucket.blob(blob_path)
-    if old_blob.exists():
-        old_blob.delete()
-    
-    # 🆕 Upload file
-    blob = bucket.blob(blob_path)
-    blob.upload_from_file(file)
-    # ✅ Make file public
-    blob.make_public()
-    
-    # 🧠 Hash file for duplication tracking
-    file.seek(0)
-    file_bytes = file.read()
-    hash_val = hashlib.md5(file_bytes).hexdigest()
-    
-    # 🔐 Store metadata
-    db.collection("Files").add({
-        "name": filename,
-        "path": path,
-        "user_id": uid,
-        "download_url": blob.public_url,
-        "hash_value": hash_val
-    })
-    
-    return jsonify({"message": f"✅ File '{filename}' uploaded to {path}."})
-
-@app.route("/firebase-config")
-def firebase_config():
-    return jsonify({
-        "apiKey": os.getenv("FIREBASE_API_KEY"),
-        "authDomain": os.getenv("FIREBASE_AUTH_DOMAIN"),
-        "projectId": os.getenv("FIREBASE_PROJECT_ID"),
-    })
+    try:
+        file = request.files.get("file")
+        uid = request.form.get("uid")
+        path = request.form.get("path")
+        overwrite = request.form.get("overwrite", "false").lower() == "true"
+        
+        if not file or not uid or not path:
+            return jsonify({"error": "Missing required parameters"}), 400
+        
+        from services.file_service import upload_file
+        upload_file(uid, file, path, overwrite=overwrite)
+        
+        return jsonify({
+            "message": f"File '{file.filename}' uploaded successfully to '{path}'"
+        })
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": f"Failed to upload file: {str(e)}"}), 500
 
 if __name__ == "__main__":
     app.run(debug=True)

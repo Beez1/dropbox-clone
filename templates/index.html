@@ -188,11 +188,12 @@
           const res = await fetch("/directory", {
             method: "DELETE",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ uid: userId, path: pathToDelete })
+            body: JSON.stringify({ uid, path })
           });
 
           const result = await res.json();
-          document.getElementById("upload-status").textContent = result.message;
+          document.getElementById("directory-message").textContent = result.message;
+          loadDirectories(); // Refresh directory list
         });
 
         document.getElementById("upload-form").addEventListener("submit", async (e) => {
@@ -336,8 +337,8 @@
           const uid = document.getElementById("user-id").value;
           if (!uid) return;
 
-          const response = await fetch(`/list-directories?uid=${uid}&path=${encodeURIComponent(currentPath)}`);
-          const dirs = await response.json();
+          const response = await fetch(`/list-directories?uid=${uid}&parent_path=${encodeURIComponent(currentPath)}`);
+          const directories = await response.json();
 
           const list = document.getElementById("directory-list");
           list.innerHTML = "";
@@ -358,7 +359,7 @@
             list.appendChild(up);
           }
 
-          dirs.forEach(dir => {
+          directories.forEach(dir => {
             const li = document.createElement("li");
             li.textContent = dir.name + "/";
             li.style.cursor = "pointer";
