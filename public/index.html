@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <!-- This is the login section where users can sign in or create an account -->
+  <!-- Login Container -->
   <div id="login-container">
     <div class="login-box">
       <div class="login-header">
@@ -38,9 +38,9 @@
     </div>
   </div>
   
-  <!-- Main application interface that shows after login -->
+  <!-- App Container -->
   <div id="app-container">
-    <!-- Top navigation bar with logo and user info -->
+    <!-- Header -->
     <header class="header">
       <div class="container">
         <div class="header-content">
@@ -56,20 +56,20 @@
       </div>
     </header>
     
-    <!-- Main content area with file explorer and tools -->
+    <!-- Main Content -->
     <main class="container">
-      <!-- Shows current location in folder structure -->
+      <!-- Breadcrumb Navigation -->
       <div class="breadcrumb" id="breadcrumbs"></div>
       
-      <!-- Main content wrapper -->
+      <!-- Content Area -->
       <div class="content">
-        <!-- File and folder explorer section -->
+        <!-- File Explorer -->
         <div class="file-explorer">
           <div class="path-display">
             Current Path: <span id="current-path">/</span>
           </div>
           
-          <!-- List of folders -->
+          <!-- Directories Section -->
           <div class="directories-section">
             <div class="section-header">
               <h3>Directories</h3>
@@ -77,7 +77,7 @@
             <div id="directory-list" class="directory-list"></div>
           </div>
           
-          <!-- List of files with duplicate finder -->
+          <!-- Files Section -->
           <div class="files-section">
             <div class="section-header">
               <h3>Files</h3>
@@ -90,9 +90,9 @@
           </div>
         </div>
         
-        <!-- Right sidebar with file management tools -->
+        <!-- Sidebar -->
         <div class="sidebar">
-          <!-- File upload tool -->
+          <!-- Upload File Section -->
           <div class="sidebar-section">
             <h3>Upload File</h3>
             <form id="file-upload-form">
@@ -105,7 +105,7 @@
             </form>
           </div>
           
-          <!-- New folder creation tool -->
+          <!-- Create Directory Section -->
           <div class="sidebar-section">
             <h3>Create Directory</h3>
             <form id="create-directory-form">
@@ -118,7 +118,7 @@
             </form>
           </div>
           
-          <!-- Access to shared files -->
+          <!-- Shared Files Section -->
           <div class="sidebar-section">
             <h3>Shared Files</h3>
             <button id="shared-files-btn" class="btn-primary">View Shared Files</button>
@@ -127,13 +127,13 @@
       </div>
     </main>
     
-    <!-- Popup form for sharing files with other users -->
+    <!-- Share File Form -->
     <div id="share-file-form">
       <div class="share-header">
         <h3>Share File</h3>
         <p>Share <span id="share-file-name"></span> with another user:</p>
       </div>
-      <form>
+      <form id="share-file-form-element">
         <input type="hidden" id="share-file-id">
         <div class="form-group">
           <label for="share-email">User Email</label>
@@ -146,7 +146,7 @@
       </form>
     </div>
     
-    <!-- Popup for confirming important actions -->
+    <!-- Confirmation Modal -->
     <div id="confirmation-modal" class="modal">
       <div class="modal-content">
         <div class="modal-header">
@@ -160,26 +160,26 @@
       </div>
     </div>
     
-    <!-- Container for showing all duplicate files -->
+    <!-- All Duplicates Container -->
     <div id="all-duplicates-container">
       <button id="close-all-duplicates" class="close-btn">×</button>
     </div>
     
-    <!-- Legacy shared files view (maintained for compatibility) -->
+    <!-- Shared Files Container (Kept for backward compatibility, but no longer used) -->
     <div id="shared-files-container">
       <button id="close-shared-files" class="close-btn">×</button>
     </div>
     
-    <!-- Toast-style notification popup -->
+    <!-- Notification -->
     <div id="notification" class="notification"></div>
   </div>
   
-  <!-- Required Firebase SDK scripts -->
+  <!-- Firebase Scripts -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
   
-  <!-- Custom application scripts -->
+  <!-- Application Scripts -->
   <script src="js/firebase-login.js"></script>
   <script src="js/app.js"></script>
 </body>

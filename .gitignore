@@ -11,4 +11,6 @@ node_modules/
 *.rar
 *.7z
 .git/
+local_constants.py
 
+local_constants.py.real
