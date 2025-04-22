@@ -593,7 +593,12 @@ def get_shared_file_url():
                     expiration = share_data['expires_at']
                     
                 # If expired, don't allow download
-                if expiration < datetime.datetime.now():
+                current_time = datetime.datetime.now()
+                # Ensure both times are naive (no timezone) for consistent comparison
+                if hasattr(expiration, 'tzinfo') and expiration.tzinfo is not None:
+                    expiration = expiration.replace(tzinfo=None)
+                
+                if expiration < current_time:
                     # Remove the share since it's expired
                     share_ref.delete()
                     return jsonify({'success': False, 'message': 'This shared file has expired and is no longer available'})

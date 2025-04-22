@@ -1277,7 +1277,15 @@ function updateBreadcrumbs() {
 
 // Show a notification message
 function showNotification(message, type = 'success') {
-  const notification = document.getElementById('notification');
+  // Get or create notification element
+  let notification = document.getElementById('notification');
+  
+  // If notification element doesn't exist, create one
+  if (!notification) {
+    notification = document.createElement('div');
+    notification.id = 'notification';
+    document.body.appendChild(notification);
+  }
   
   // Add icon based on notification type
   let icon = '';
@@ -1291,21 +1299,63 @@ function showNotification(message, type = 'success') {
     icon = '<i class="fas fa-info-circle"></i> ';
   }
   
+  // Set notification content and class
   notification.innerHTML = icon + message;
   notification.className = `notification ${type}`;
   
-  // Show notification
-  notification.style.display = 'block';
+  // Add close button
+  const closeButton = document.createElement('span');
+  closeButton.className = 'notification-close';
+  closeButton.innerHTML = '&times;';
+  closeButton.style.marginLeft = '10px';
+  closeButton.style.cursor = 'pointer';
+  closeButton.style.fontSize = '18px';
+  closeButton.style.opacity = '0.7';
+  closeButton.addEventListener('click', () => {
+    notification.style.display = 'none';
+  });
+  notification.appendChild(closeButton);
+  
+  // Show notification with animation
+  notification.style.display = 'flex';
+  notification.style.opacity = '0';
+  notification.style.transform = 'translateY(20px)';
+  
+  // Apply animation
+  setTimeout(() => {
+    notification.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+    notification.style.opacity = '1';
+    notification.style.transform = 'translateY(0)';
+  }, 10);
   
   // Clear any existing timeout
   if (notification.timeoutId) {
     clearTimeout(notification.timeoutId);
   }
   
-  // Hide after 4 seconds
+  // Hide after 5 seconds for success, 8 seconds for warnings/errors
+  const displayTime = type === 'success' ? 5000 : 8000;
   notification.timeoutId = setTimeout(() => {
+    notification.style.opacity = '0';
+    notification.style.transform = 'translateY(20px)';
+    
+    // Remove element after fade out
+    setTimeout(() => {
+      notification.style.display = 'none';
+    }, 300);
+  }, displayTime);
+  
+  // Make notification accessible
+  notification.setAttribute('role', 'alert');
+  notification.setAttribute('aria-live', 'assertive');
+  
+  // Return a function to manually close the notification
+  return function closeNotification() {
+    if (notification.timeoutId) {
+      clearTimeout(notification.timeoutId);
+    }
     notification.style.display = 'none';
-  }, 4000);
+  };
 }
 
 // Add session timeout handling
