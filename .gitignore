@@ -12,3 +12,10 @@ node_modules/
 *.7z
 .git/
 
+# Deployment files
+local_constants.py
+.vscode/
+.pytest_cache/
+dist/
+build/
+

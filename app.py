@@ -4,7 +4,7 @@ import hashlib
 from flask import Flask, render_template, request, jsonify, redirect, url_for
 import firebase_admin
 from firebase_admin import credentials, firestore, storage
-import local_constants as local_constants
+import config
 import datetime
 import re
 
@@ -14,18 +14,18 @@ app = Flask(__name__, static_folder='public', static_url_path='')
 # Initialize Firebase Admin SDK
 cred = credentials.Certificate({
     "type": "service_account",
-    "project_id": local_constants.GOOGLE_PROJECT_ID,
-    "private_key_id": local_constants.GOOGLE_PRIVATE_KEY_ID,
-    "private_key": local_constants.GOOGLE_PRIVATE_KEY,
-    "client_email": local_constants.GOOGLE_CLIENT_EMAIL,
-    "client_id": local_constants.GOOGLE_CLIENT_ID,
+    "project_id": config.GOOGLE_PROJECT_ID,
+    "private_key_id": config.GOOGLE_PRIVATE_KEY_ID,
+    "private_key": config.GOOGLE_PRIVATE_KEY,
+    "client_email": config.GOOGLE_CLIENT_EMAIL,
+    "client_id": config.GOOGLE_CLIENT_ID,
     "auth_uri": "https://accounts.google.com/o/oauth2/auth",
     "token_uri": "https://oauth2.googleapis.com/token",
     "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-    "client_x509_cert_url": local_constants.GOOGLE_CLIENT_X509_CERT_URL
+    "client_x509_cert_url": config.GOOGLE_CLIENT_X509_CERT_URL
 })
 firebase_admin.initialize_app(cred, {
-    'storageBucket': local_constants.FIREBASE_STORAGE_BUCKET
+    'storageBucket': config.FIREBASE_STORAGE_BUCKET
 })
 
 # Initialize Firestore and Storage
@@ -36,6 +36,28 @@ bucket = storage.bucket()
 def index():
     """Serve the main application page"""
     return app.send_static_file('index.html')
+
+@app.route('/firebase-config')
+def firebase_config():
+    """Serve Firebase configuration for frontend"""
+    return jsonify({
+        'apiKey': config.FIREBASE_API_KEY,
+        'authDomain': config.FIREBASE_AUTH_DOMAIN,
+        'projectId': config.FIREBASE_PROJECT_ID,
+        'storageBucket': config.FIREBASE_STORAGE_BUCKET,
+        'messagingSenderId': config.FIREBASE_MESSAGING_SENDER_ID,
+        'appId': config.FIREBASE_APP_ID,
+        'measurementId': config.FIREBASE_MEASUREMENT_ID
+    })
+
+@app.route('/health')
+def health_check():
+    """Health check endpoint for monitoring"""
+    return jsonify({
+        'status': 'healthy',
+        'service': 'dropbox-clone',
+        'version': '1.0.0'
+    })
 
 @app.route('/init-user', methods=['POST'])
 def init_user():
@@ -662,4 +684,5 @@ def remove_shared_file():
     return jsonify({'success': True, 'message': 'File removed from shared files'})
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8080, debug=True)
+    port = int(os.environ.get('PORT', 8080))
+    app.run(host='0.0.0.0', port=port, debug=False)

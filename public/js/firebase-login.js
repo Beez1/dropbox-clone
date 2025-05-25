@@ -1,16 +1,32 @@
-// Firebase configuration
-const firebaseConfig = {
-  apiKey: "<YOUR_FIREBASE_API_KEY>",
-  authDomain: "<YOUR_FIREBASE_AUTH_DOMAIN>",
-  projectId: "<YOUR_FIREBASE_PROJECT_ID>",
-  storageBucket: "<YOUR_FIREBASE_STORAGE_BUCKET>",
-  messagingSenderId: "<YOUR_FIREBASE_MESSAGING_SENDER_ID>",
-  appId: "<YOUR_FIREBASE_APP_ID>",
-  measurementId: "<YOUR_FIREBASE_MEASUREMENT_ID>"
-};
+// Firebase configuration - will be loaded from backend
+let firebaseConfig = null;
 
-// Initialize Firebase
-firebase.initializeApp(firebaseConfig);
+// Initialize Firebase after loading config
+async function initializeFirebase() {
+  try {
+    const response = await fetch('/firebase-config');
+    firebaseConfig = await response.json();
+    firebase.initializeApp(firebaseConfig);
+    console.log('Firebase initialized successfully');
+  } catch (error) {
+    console.error('Error loading Firebase config:', error);
+    // Fallback to hardcoded config for development
+    firebaseConfig = {
+      apiKey: "AIzaSyBw1D-XDdzRZGWAcaG4WflUVtPv9NSp7CI",
+      authDomain: "dropboxclone-26e34.firebaseapp.com",
+      projectId: "dropboxclone-26e34",
+      storageBucket: "dropboxclone-26e34.appspot.com",
+      messagingSenderId: "572745732961",
+      appId: "1:572745732961:web:114482b979929412266b20",
+      measurementId: "G-6T869877L3"
+    };
+    firebase.initializeApp(firebaseConfig);
+    console.log('Firebase initialized with fallback config');
+  }
+}
+
+// Initialize Firebase when the page loads
+initializeFirebase();
 
 // Authentication state observer
 let currentUser = null;
